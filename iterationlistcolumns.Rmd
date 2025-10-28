@@ -5,26 +5,195 @@ date: "2025-10-28"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+library(tidyverse)
+library(rvest)
 ```
 
-## R Markdown
+## Make a list
+```{r}
+l = #creating a list
+  list(
+    vec_numeric = 1:23,
+    char_vec = c("Jeff"),
+    mat = matrix(1:8, nrow = 2, ncol = 4),
+    summary(rnorm(1000, mean = 4))
+  )
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+l
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+#pulling out items from list
+l[[1]]
+l[["vec_numeric"]]
+#try to avoid using $, is for pulling things out of lists 
 ```
 
-## Including Plots
+## Make a different list
+```{r}
+list_normals = #making new list with different contents
+  list(
+    a = rnorm(30, mean = 3, sd = 1),
+    b = rnorm(30, mean = 30, sd = 1),
+    c = rnorm(30, mean = 3, sd = 10),
+    d = rnorm(30, mean = -3, sd = 4)
+  )
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+list_normals
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+(copy and paste function for last time)
+```{r}
+source("source/mean_and_sd.R")
+```
+
+
+Use a for loop to iterate these lists by this function
+
+```{r}
+output = vector("list", length = 4)
+
+for (i in 1:4){
+  
+  output[[i]] = mean_and_sd(list_normals[[i]])
+  
+}
+
+output #get list of four dataframes, can keep track of inputs and outputs
+```
+
+Use `map` to do the same thing
+
+```{r}
+output = map(list_normals, mean_and_sd) #can switch out mean_and_sd function to apply whatever function you want
+output = map(list_normals, median) #using median this time
+output #map statements let you use various functions for lists and don't have to set length of output object, empty spots needed etc.
+```
+
+`Map` variants, this one collapses everything into a df
+```{r}
+map_dfr(list_normals, mean_and_sd, .id = "sample")
+
+map_dbl(list_normals, median)
+```
+
+## List columns
+
+Try to put my list into a dataframe.
+
+```{r}
+listcol_df = 
+  tibble(
+    name = c("a", "b", "c", "d"), #both rows have link 4 so can put them next to each other in df
+    sample = list_normals
+  )
+```
+
+Did this work? Test by pulling list
+
+```{r}
+pull(listcol_df, sample)
+pull(listcol_df, name)
+```
+
+Can I apply mean_and_sd
+```{r}
+mean_and_sd(pull(listcol_df,sample)[[1]])
+mean_and_sd(pull(listcol_df,sample)[[2]])
+mean_and_sd(pull(listcol_df,sample)[[3]])
+mean_and_sd(pull(listcol_df,sample)[[4]])
+```
+
+Iterate using map
+```{r}
+map(pull(listcol_df, sample), mean_and_sd)
+```
+
+Adding a column
+
+```{r}
+listcol_df = 
+  listcol_df |> 
+  mutate(
+    summary = map(sample, mean_and_sd)
+  )
+
+pull(listcol_df, summary)
+```
+
+```{r}
+listcol_df |> 
+  select(-sample) |> 
+  unnest(summary)
+```
+
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+nsduh_html = read_html(nsduh_url)
+
+nsduh_import = function(html, table_num) {
+  
+  data = 
+    html |> 
+    html_table() |> 
+    nth(table_num) |>
+    slice(-1) |> 
+    select(-contains("P Value")) |>
+    pivot_longer(
+      -State,
+      names_to = "age_year", 
+      values_to = "percent") |>
+    separate(age_year, into = c("age", "year"), sep = "\\(") |>
+    mutate(
+      year = str_replace(year, "\\)", ""),
+      percent = str_replace(percent, "[a-c]$", ""),
+      percent = as.numeric(percent)) |>
+    filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
+  
+  data
+  
+}
+
+nsduh_import(nsduh_html, table_num = 1)
+nsduh_import(nsduh_html, table_num = 2)
+nsduh_import(nsduh_html, table_num = 3)
+```
+
+Try this with a for loop
+
+```{r}
+
+output = vector("list", length = 3)
+
+for ( i in 1:3) {
+  
+  output[[i]] = nsduh_import(html = nsduh_html, i) #function now has two specified arguments
+  
+}
+
+output
+
+```
+
+
+Do this with `map`
+```{r}
+map(1:3, nsduh_import, html = nsduh_html) #mapping across 1, 2, and 3 using new nsduh function
+```
+
+Trying to tidy up by doing this all in a dataframe
+
+```{r}
+
+nsduh_df = 
+  tibble(
+    name = c("marj year", "marj month", "marj first"),
+    number = 1:3 
+  ) |> 
+  mutate(
+    table = map(number, nsduh_import, html = nsduh_html) #map across number column, apply this function, and do it here
+  ) |> 
+  unnest(table) #expands the entire thing, can take away
+nsduh_df
+```
+

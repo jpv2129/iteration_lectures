@@ -1,11 +1,16 @@
-# mean_and_sd.R
-mean_and_sd <- function(x) {
+mean_and_sd = function(x) {
+  
   if (!is.numeric(x)) {
-    stop("Input must be numeric")
+    stop("Argument x should be numeric")
+  } else if (length(x) == 1) {
+    stop("Cannot be computed for length 1 vectors")
   }
   
-  list(
-    mean = mean(x),
-    sd = sd(x)
+  mean_x = mean(x)
+  sd_x = sd(x)
+  
+  tibble(
+    mean = mean_x, 
+    sd = sd_x
   )
 }
