@@ -1,0 +1,42 @@
+---
+title: "Simulation"
+author: "Jake Vettoretti"
+date: "2025-10-30"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+source("source/mean_and_sd.R")
+source("source/sim_mean_sd.R")
+```
+
+```{r}
+output = vector("list", length = 100)
+
+for (i in 1:100) {
+  output[[i]] = sim_mean_sd(30)
+}
+
+output |> 
+  bind_rows() |> #stacks individual dataframe
+  ggplot(aes(x=mu_hat)) +
+  geom_density()
+```
+
+Try to repeat with map statement
+
+```{r}
+sim_results_df = 
+  expand_grid(
+    sample_size = 30,
+    iter = 1:100
+) |> 
+  mutate(
+  results = map(iter, sim_mean_sd, n = 30)
+) |> 
+  unnest(results)
+```
+
+
+
